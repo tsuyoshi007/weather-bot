@@ -1,14 +1,13 @@
-require('dotenv').config();
+require("dotenv").config();
 
 const YR_URL = process.env.YR_URL;
 const SLACK_TOKEN = process.env.SLACK_TOKEN;
 const NUMBER_OF_PERIOD = process.env.NUMBER_OF_PERIOD;
 
-const parser = require('fast-xml-parser');
-const https = require('https');
-const { WebClient } = require('@slack/client');
+const parser = require("fast-xml-parser");
+const https = require("https");
+const { WebClient } = require("@slack/client");
 const web = new WebClient(SLACK_TOKEN);
-
 
 /**
  * this function will get weather-data from yr.no.
@@ -16,20 +15,25 @@ const web = new WebClient(SLACK_TOKEN);
  */
 const getWeatherData = () => {
   return new Promise((resolve, reject) => {
-    https.get(YR_URL, (res) => {
-      let xmlString = '';
-      res.on('data', (d) => {
-        xmlString += d;
+    https
+      .get(YR_URL, res => {
+        let xmlString = "";
+        res.on("data", d => {
+          xmlString += d;
+        });
+        res.on("close", () => {
+          if (parser.validate(xmlString) === true) {
+            const weatherData = parser.parse(xmlString, {
+              ignoreAttributes: false,
+              attributeNamePrefix: ""
+            });
+            resolve(weatherData);
+          }
+        });
+      })
+      .on("error", e => {
+        reject(e);
       });
-      res.on('close', () => {
-        if (parser.validate(xmlString) === true) {
-          const weatherData = parser.parse(xmlString, { ignoreAttributes: false, attributeNamePrefix: '' });
-          resolve(weatherData);
-        }
-      });
-    }).on('error', (e) => {
-      reject(e);
-    });
   });
 };
 
@@ -38,11 +42,11 @@ const getWeatherData = () => {
  * @param {JSON} weatherData
  * @returns {JSON} weatherMessage
  */
-const createWeatherMessage = (weatherData) => {
+const createWeatherMessage = weatherData => {
   const weatherMessage = [];
 
   const divider = {
-    type: 'divider'
+    type: "divider"
   };
 
   for (let i = 0; i < NUMBER_OF_PERIOD; i++) {
@@ -50,7 +54,7 @@ const createWeatherMessage = (weatherData) => {
     const period = parseInt(weather.period);
     const date = weather.from.substring(0, 10);
     const timeFrom = weather.from.substring(11, 16);
-    const timeTo = weather.to.substring(12, 16);
+    const timeTo = weather.to.substring(11, 16);
     const temperature = weather.temperature.value;
     const windSpeed = weather.windSpeed.mps;
     const precipitation = weather.precipitation.value;
@@ -59,44 +63,44 @@ const createWeatherMessage = (weatherData) => {
 
     const message = `*From ${timeFrom} to ${timeTo}*\nTempurature: ${temperature} °C     Precipitation: ${precipitation} mm\nWind: ${windDirection}     ${windSpeed} m/s`;
     const dateTitle = {
-      type: 'section',
+      type: "section",
       text: {
-        type: 'mrkdwn',
+        type: "mrkdwn",
         text: `*${date}*`
       }
     };
     const section = {
-      type: 'section',
+      type: "section",
       text: {
-        type: 'mrkdwn',
+        type: "mrkdwn",
         text: message
       },
       accessory: {
-        type: 'image',
+        type: "image",
         image_url: symbolNameToImageURL(weatherSymbolName),
         alt_text: `${weatherSymbolName}`
       }
     };
     const warning = {
-      type: 'context',
+      type: "context",
       elements: [
         {
-          type: 'image',
+          type: "image",
           image_url: process.env.UMBRELLA,
-          alt_text: 'Umbrella'
+          alt_text: "Umbrella"
         },
         {
-          type: 'mrkdwn',
+          type: "mrkdwn",
           text: "Please don't forget to bring your umbrella."
         },
         {
-          type: 'image',
+          type: "image",
           image_url: process.env.WASHING_MACHINE,
-          alt_text: 'Washing Machine'
+          alt_text: "Washing Machine"
         },
         {
-          type: 'mrkdwn',
-          text: 'Drying the clothes under the sun is not suitable.'
+          type: "mrkdwn",
+          text: "Drying the clothes under the sun is not suitable."
         }
       ]
     };
@@ -120,24 +124,26 @@ const createWeatherMessage = (weatherData) => {
 
 /**
  * this function will send the block message to the specified slack channel
- * @param {JSON} blocks 
- * @param {String} channel 
+ * @param {JSON} blocks
+ * @param {String} channel
  */
 const sendMessageToSlackChannel = (blocks, channel) => {
-  web.chat.postMessage({
-    blocks: blocks,
-    channel: channel
-  }).catch(err => {
-    console.log(err);
-  });
-}
+  web.chat
+    .postMessage({
+      blocks: blocks,
+      channel: channel
+    })
+    .catch(err => {
+      console.log(err);
+    });
+};
 
 /**
  * this function will return the url of icon that match to the symbol name.
  * @param {String} symbolName
  * @returns {String} urlOfIcon
  */
-const symbolNameToImageURL = (symbolName) => {
+const symbolNameToImageURL = symbolName => {
   const CLEAR_SKY = process.env.CLEAR_SKY;
   const PARTLY_CLOUDY = process.env.PARTLY_CLOUDY;
   const FAIR = process.env.FAIR;
